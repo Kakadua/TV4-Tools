@@ -1,0 +1,87 @@
+<?php
+	
+	function no_special_char($string) {
+		$old = array('å', 'ä', 'ö', 'Å', 'Ä', 'Ö');
+		$new = array('a', 'a', 'o', 'A', 'A', 'O');
+		$string = str_replace($old, $new, $string); //Replace åäö
+		
+		return preg_replace('/[^A-Za-z\s0-9\-]/', '', $string); // Removes special chars.
+	}
+
+	function file_read($file){
+		$fh = fopen($file, 'r');
+		$data = fread($fh, filesize($file));
+		fclose($fh);
+		return $data;	
+	}
+	
+	function file_write($file, $data){
+		$fh = fopen($file, 'w') or die("can't open file");
+		fwrite($fh, $data);
+		fclose($fh);		
+	}
+	
+	function generateFromDir($dir){
+		$files = scandir($dir);
+		foreach($files as $file) {
+			if(is_dir("{$dir}/{$file}")){
+				echo "{$file}\n";
+				if($file != '.' && $file != '..'){
+					generateFromDir("{$dir}/{$file}");
+				}
+			}else if(substr($file, -9) == '.tv4.json'){
+			
+				$file = "{$dir}/{$file}";
+				echo "{$file}\n";
+				$filename = $url = $sub = $fanart = "";
+				$filename = explode(".tv4.json", $file)[0];
+				$json = json_decode(str_replace('https', 'http', file_read($file)), true);
+				
+				
+				if(isset($json['xml']['items']['item'][1])){
+					foreach($json['xml']['items']['item'] as $video){
+						if($video['mediaFormat'] == 'mp4'){
+							$url = $video['url'];
+						}else if($video['mediaFormat'] == 'webvtt'){
+							$sub = $video['url'];
+						}
+					}
+				}else{
+					$url = $json['xml']['items']['item']['url'];
+				}
+				
+				$fanart = $json['json']['results'][0]['image'];
+				$nfo = '
+				<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+					<episodedetails>
+						<plot>'.no_special_char($json['json']['results'][0]['description']).'</plot>
+						<title>'.no_special_char($json['json']['results'][0]['title']).'</title>
+						<originaltitle>'.no_special_char($json['json']['results'][0]['title']).'</originaltitle>
+						<year>'.explode('-', $json['json']['results'][0]['broadcast_date_time'])[0].'</year>
+						<aired>'.explode('+', str_replace('T', ' ', $json['json']['results'][0]['broadcast_date_time']))[0].'</aired>
+					</episodedetails>
+				';
+				
+				
+				if($url != ""){
+					file_write("{$filename}.strm", $url);
+				}
+				if($fanart != ""){
+					file_put_contents("{$filename}-fanart.jpg", file_get_contents($fanart));
+				}
+				if($nfo != ""){
+					file_put_contents("{$filename}.nfo", $nfo);
+				}
+				if($sub != ""){
+					$sub = file_get_contents($sub);
+					file_write("{$filename}.webvtt", $sub);
+				}
+			}else{
+				echo "-{$file}\n";
+			}
+		}
+	}
+	
+	generateFromDir('.');
+
+?>

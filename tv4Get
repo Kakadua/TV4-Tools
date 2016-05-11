@@ -1,0 +1,57 @@
+<?php
+	
+	function no_special_char($string) {
+		$old = array('å', 'ä', 'ö', 'Å', 'Ä', 'Ö');
+		$new = array('a', 'a', 'o', 'A', 'A', 'O');
+		$string = str_replace($old, $new, $string); //Replace åäö
+		
+		return preg_replace('/[^A-Za-z\s0-9\-]/', '', $string); // Removes special chars.
+	}
+	
+	function file_write($file, $data){
+		$fh = fopen($file, 'w') or die("can't open file");
+		fwrite($fh, $data);
+		fclose($fh);		
+	}
+	
+	function get_between_all($content, $start, $end, $array = array()){
+		$temp = explode($start, $content, 2);
+		if(isset($temp[1])){
+			$temp = explode($end, $temp[1], 2);
+			$array[] = $temp[0];
+			return get_between_all($temp[1], $start, $end, $array);
+		} else{
+			return $array;
+		}
+	}
+	
+	function xml_decode($xml){
+		return json_decode(json_encode(simplexml_load_string($xml, "SimpleXMLElement", LIBXML_NOCDATA)),TRUE);
+	}
+	
+	echo "Ange id till serien du vill h�mta, du ser det i url, exempelvis http://www.tv4play.se/program/kalla-fakta har id kalla-fakta\n\nid: ";
+	$handle = fopen ("php://stdin","r");
+	$nid = trim(fgets($handle));
+	
+	if(substr($nid, 4) == 'http'){
+		$nid = explode("program/", $nid);
+	}
+	
+	$data = json_decode(file_get_contents("http://webapi.tv4play.se/play/video_assets?platform=tablet&per_page=1&is_live=false&is_premium=false&type=episode&page=1&node_nids={$nid}&start=0"), true);
+	
+	for($i=1; $i<=$data['total_hits']; $i++){
+	//for($i=1; $i<=2; $i++){
+		$jsonRaw = file_get_contents("http://webapi.tv4play.se/play/video_assets?platform=tablet&per_page=1&is_live=false&is_premium=false&type=episode&page={$i}&node_nids={$nid}&start=0");
+		$json = json_decode($jsonRaw, true);
+		
+		$xmlRaw = file_get_contents("http://prima.tv4play.se/api/web/asset/{$json['results'][0]['id']}/play?protocol=hls");
+		$xml = xml_decode($xmlRaw);
+		
+		$title = no_special_char(explode('T', $xml['liveBroadcastTime'])[0] . " - " . $xml['title']);
+		$fullData['json'] = $json;
+		$fullData['xml'] = $xml;
+		file_write("{$title}.tv4.json", json_encode($fullData));
+		
+	}
+	
+?>
