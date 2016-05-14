@@ -46,6 +46,13 @@
 							$sub = $video['url'];
 						}
 					}
+					if($url == ""){
+						foreach($json['xml']['items']['item'] as $video){
+							if($video['mediaFormat'] == 'wvm'){
+								$url = $video['url'];
+							}
+						}
+					}
 				}else{
 					$url = $json['xml']['items']['item']['url'];
 				}
